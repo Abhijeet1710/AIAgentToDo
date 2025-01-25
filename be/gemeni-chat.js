@@ -32,11 +32,15 @@ async function connectToDB() {
 
 const availableTools = {
   getAllTodos: async () => {
+    console.log("Tool getAllTodos");
+
     const res = await todosCollection.find().toArray();
     console.log(res);
     return res;
   },
-  createTodo: async (title, isCompleted) => {
+  createTodo: async (title, isCompleted = false) => {
+    console.log("Tool createTodo", title, isCompleted);
+
     const result = await todosCollection.insertOne({
       title,
       isCompleted,
@@ -44,16 +48,34 @@ const availableTools = {
       updated_at: new Date(),
     });
 
-    return title;
+    return result.insertedId;
+  },
+  updateTodo: async (id, update) => {
+    console.log("Tool updateTodoById", id, update);
+
+    const { ObjectId } = require("mongodb");
+    const result = await todosCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { ...update, updated_at: new Date() } }
+    );
+    return result.modifiedCount > 0
+      ? "Todo updated successfully"
+      : "Todo not found";
   },
   deleteTodoById: async (id) => {
+    console.log("Tool deleteTodoById", id);
+
     const { ObjectId } = require("mongodb");
     const result = await todosCollection.deleteOne({
       _id: new ObjectId(id),
     });
-    return result.deletedCount > 0;
+    return result.deletedCount > 0
+      ? "Todo deleted successfully"
+      : "Todo not found";
   },
   searchTodo: async (query) => {
+    console.log("Tool searchTodo", query);
+
     return await todosCollection
       .find({ title: { $regex: query, $options: "i" } })
       .toArray();
@@ -67,10 +89,12 @@ const SYSTEM_PROMPT = `
 
     Make sure to return only next step in the response basis the current state in the prompt.
 
-    Don't be creative, Don't do any additional steps or validations, Just do whatever is asked in the prompt.
-
     You can manage tasks by adding, viewing, updating and deleting them.
-    You must strictly follow the JSON output format which I should be able to parse using NodeJs JSON.parse().
+    You must strictly follow the JSON output format like Examples which I should be able to parse using NodeJs JSON.parse().
+
+    Note: 
+    - You must take the decesion considering all user inputs, current as well as past conversation.
+    - You can ask additional clearifying questions to the user if needed, But dont ask more than 3 questions to the user.
 
     Available Tools:
     - getAllTodos(): Returns all the Todos from the Database
@@ -92,37 +116,42 @@ const SYSTEM_PROMPT = `
     { "Type": "output", "output": "Can you tell me what all items you want to shop for?"
     { "Type": "user", "user": "I want to shop for milk, kurkure, lays and chocolate." }
     { "Type": "plan", "plan": "I will use createTodo to create a new Todo in DB."}
-    { "Type": "action", "function": "createTodo", "input": "Shopping for milk, kurkure, lays and chocolate." }
+    { "Type": "action", "function": "createTodo", "input": "Shopping groceries like milk, kurkure, lays and chocolate." }
     { "Type": "observation", "observation": "Shopping for milk, kurkure, lays and chocolate." }
     { "Type": "output", "output": "Your todo has been create successfully" }
 `;
 
 // const user_prompt = {"type":"plan","plan":`I will call the createTodo for 'Validate Update IA changes in Qa'`};
 
-
+// ROLE: system, user, assistant, developer
 async function chat() {
   const messages = [JSON.stringify({ role: "system", content: SYSTEM_PROMPT })];
 
   while (true) {
-    const query = readLineSync.question(">> ");
+    let query = readLineSync.question(">> ");
+    if (query == "exit") break;
+
+    query = { Type: "user", user: query };
     const userMessage = { role: "user", content: query };
 
     messages.push(JSON.stringify(userMessage));
 
     while (true) {
-      const result = await callGemeni(messages);
+      let result = await callGemeni(messages);
+      result = result[0];
       console.log("res", result);
-      break;
+      messages.push(JSON.stringify({ role: "assistant", content: result }));
 
-      //   for (const res of result) {
-      //     if (res.Type === "output") {
-      //       console.log(res.output);
-      //       break;
-      //     } else if (res.Type === "action") {
-      //       const fun = res.function;
-      //       await availableTools[fun](res.input);
-      //     }
-      //   }
+      if (result.Type === "output") {
+        console.log("🤖 :", result.output);
+        break;
+      } else if (result.Type == "action") {
+        const toolToUse = result.function;
+        const toolResp = await availableTools[toolToUse](result.input);
+
+        const obs = { Type: "observation", observation: toolResp };
+        messages.push(JSON.stringify({ role: "developer", content: obs }));
+      }
     }
   }
 }
@@ -139,8 +168,6 @@ async function callGemeni(prompt) {
       const cleanJsonString = jsonString.replace(/```json\n|```/g, "");
       return JSON.parse(cleanJsonString);
     });
-
-    console.log("Parsed Objects: ", typeof parsedObjects);
     return parsedObjects;
   } else {
     console.log("No JSON strings found in the response.");
@@ -151,45 +178,45 @@ async function callGemeni(prompt) {
 
 async function startApplication() {
   await connectToDB();
-    await chat();
-//   callGemeni([
-//     JSON.stringify({ role: "system", content: SYSTEM_PROMPT }),
+  await chat();
+  //   callGemeni([
+  //     JSON.stringify({ role: "system", content: SYSTEM_PROMPT }),
 
-//     JSON.stringify({
-//       role: "assistant",
-//       content:
-//         '{ "Type": "plan", "plan": "I will need to know the specific changes made in the IA to validate them in QA.  More information is needed." }',
-//     }),
+  //     JSON.stringify({
+  //       role: "assistant",
+  //       content:
+  //         '{ "Type": "plan", "plan": "I will need to know the specific changes made in the IA to validate them in QA.  More information is needed." }',
+  //     }),
 
-//     JSON.stringify({
-//       role: "user",
-//       content:
-//         '{ "Type": "user", "user": "Dont worry about that, Just create the ToDo" }',
-//     }),
+  //     JSON.stringify({
+  //       role: "user",
+  //       content:
+  //         '{ "Type": "user", "user": "Dont worry about that, Just create the ToDo" }',
+  //     }),
 
-//     JSON.stringify({
-//       role: "developer",
-//       content:
-//         '{ "Type": "plan", "plan": "Ill call the createToDo for Validate Update IA changes in Qa" }',
-//     }),
+  //     JSON.stringify({
+  //       role: "developer",
+  //       content:
+  //         '{ "Type": "plan", "plan": "Ill call the createToDo for Validate Update IA changes in Qa" }',
+  //     }),
 
-//     JSON.stringify({
-//       role: "developer",
-//       content:
-//         '{ "Type": "action", "function": "createToDo", "inpuit": "Validate Update IA changes in Qa" }',
-//     }),
+  //     JSON.stringify({
+  //       role: "developer",
+  //       content:
+  //         '{ "Type": "action", "function": "createToDo", "inpuit": "Validate Update IA changes in Qa" }',
+  //     }),
 
-//     JSON.stringify({
-//       role: "developer",
-//       content:
-//         '{ "Type": "observation", "observation": "Validate Update IA changes in Qa" }',
-//     }),
+  //     JSON.stringify({
+  //       role: "developer",
+  //       content:
+  //         '{ "Type": "observation", "observation": "Validate Update IA changes in Qa" }',
+  //     }),
 
-//     JSON.stringify({
-//       role: "user",
-//       content: "Validate Update IA changes in Qa",
-//     }),
-//   ]).then((res) => console.log("res", res));
+  //     JSON.stringify({
+  //       role: "user",
+  //       content: "Validate Update IA changes in Qa",
+  //     }),
+  //   ]).then((res) => console.log("res", res));
 }
 
 startApplication();
