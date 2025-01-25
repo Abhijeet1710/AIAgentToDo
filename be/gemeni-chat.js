@@ -96,7 +96,7 @@ const SYSTEM_PROMPT = `
     Make sure to return only next step in the response basis the current state in the prompt.
 
     You can manage tasks by adding, viewing, updating and deleting them.
-    You must strictly follow the JSON output format like Examples which I should be able to parse using NodeJs JSON.parse().
+    You must strictly follow the JSON output format without any nested "". same as Examples which I should be able to parse using NodeJs JSON.parse().
 
     Note: 
     - You must take the decesion considering all user inputs, current as well as past conversation.
@@ -128,10 +128,10 @@ const SYSTEM_PROMPT = `
     { "Type": "output", "output": "Your todo has been create successfully" }
 
     { "Type": "user", "user": "Update a task for shopping groceries, Mark it as completed" }
-    { "Type": "plan", "plan": "I will need the ID of the 'shopping groceries' task to mark it as complete. I'll first search for the task using searchTodo, then update its isCompleted status."ו
+    { "Type": "plan", "plan": "I will need the ID of the shopping groceries task to mark it as complete. I'll first search for the task using searchTodo, then update its isCompleted status."ו
     { "Type": "action", "function": "searchTodo", "input": {"query": "Go to shopping"} }
     
-    { "Type": "plan", "plan": "I will update the task with ID '67953762a940ec3bbb0ea3ff' to mark it as completed using updateTodo."ו
+    { "Type": "plan", "plan": "I will update the task with ID 67953762a940ec3bbb0ea3ff to mark it as completed using updateTodo."ו
     { "Type": "action", "function": "updateTodo", "input": {"id": "67953762a940ec3bbb0ea3ff", "update": "{"isCompleted": true}"} }
 
     { "Type": "observation", "observation": "{"id": "67953762a940ec3bbb0ea3ff", "update": "{"isCompleted": true}"} " }
