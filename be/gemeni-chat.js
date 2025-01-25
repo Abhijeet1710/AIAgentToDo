@@ -22,9 +22,9 @@ async function connectToDB() {
     await mongoClient.connect();
     db = mongoClient.db("AIAgentToDo");
     todosCollection = db.collection("todos");
-    console.log(
-      "--------------------- Connected to MongoDB --------------------- "
-    );
+    // console.log(
+    //   "--------------------- Connected to MongoDB --------------------- "
+    // );
   } catch (err) {
     console.error(err);
   }
@@ -32,14 +32,16 @@ async function connectToDB() {
 
 const availableTools = {
   getAllTodos: async () => {
-    console.log("Tool getAllTodos");
+    // console.log("Tool getAllTodos");
 
     const res = await todosCollection.find().toArray();
-    console.log(res);
+    // console.log(res);
     return res;
   },
-  createTodo: async (title, isCompleted = false) => {
-    console.log("Tool createTodo", title, isCompleted);
+  createTodo: async (ip) => {
+    const title = ip.title;
+    const isCompleted = ip.isCompleted || false;
+    // console.log("Tool createTodo", title, isCompleted);
 
     const result = await todosCollection.insertOne({
       title,
@@ -50,8 +52,10 @@ const availableTools = {
 
     return result.insertedId;
   },
-  updateTodo: async (id, update) => {
-    console.log("Tool updateTodoById", id, update);
+  updateTodo: async (ip) => {
+    const id = ip.id;
+    const update = ip.update;
+    // console.log("Tool updateTodoById", id, update);
 
     const { ObjectId } = require("mongodb");
     const result = await todosCollection.updateOne(
@@ -62,8 +66,9 @@ const availableTools = {
       ? "Todo updated successfully"
       : "Todo not found";
   },
-  deleteTodoById: async (id) => {
-    console.log("Tool deleteTodoById", id);
+  deleteTodoById: async (ip) => {
+    const id = ip.id;
+    // console.log("Tool deleteTodoById", id);
 
     const { ObjectId } = require("mongodb");
     const result = await todosCollection.deleteOne({
@@ -73,12 +78,13 @@ const availableTools = {
       ? "Todo deleted successfully"
       : "Todo not found";
   },
-  searchTodo: async (query) => {
-    console.log("Tool searchTodo", query);
+  searchTodo: async (ip) => {
+    const query = ip.query;
+    // console.log("Tool searchTodo", query);
 
-    return await todosCollection
-      .find({ title: { $regex: query, $options: "i" } })
-      .toArray();
+    return await todosCollection.findOne({
+      title: { $regex: query, $options: "i" },
+    });
   },
 };
 const SYSTEM_PROMPT = `
@@ -98,9 +104,10 @@ const SYSTEM_PROMPT = `
 
     Available Tools:
     - getAllTodos(): Returns all the Todos from the Database
-    - createTodo(todo: string): Creates a new Todo in the DB and takes todo as a string and returns the title of created todo.
-    - deleteTodoById(id: string): Deleted the todo by ID from the DB
-    - searchTodo (query: string): Searches for all todos matching the query string using iLike in DB
+    - createTodo(ip): Creates a new Todo in the DB and takes ip object as argument which has title and isCompleted flag and returns the id of created todo.
+    - updateTodo(ip): Update the todo where id is ip.id with provided fields in ip.update, Where ip is an object with feilds id and update.
+    - deleteTodoById(ip): Deleted the todo by ip.id from the DB where ip is an object with feild id.
+    - searchTodo (ip): Searches for one todo matching the ip.query string using regex in DB where ip is an object with field query.
 
     ToDo List DB Schema:
     - id: Int
@@ -116,12 +123,20 @@ const SYSTEM_PROMPT = `
     { "Type": "output", "output": "Can you tell me what all items you want to shop for?"
     { "Type": "user", "user": "I want to shop for milk, kurkure, lays and chocolate." }
     { "Type": "plan", "plan": "I will use createTodo to create a new Todo in DB."}
-    { "Type": "action", "function": "createTodo", "input": "Shopping groceries like milk, kurkure, lays and chocolate." }
+    { "Type": "action", "function": "createTodo", "input": {"title": "Shopping groceries like milk, kurkure, lays and chocolate."} }
     { "Type": "observation", "observation": "Shopping for milk, kurkure, lays and chocolate." }
     { "Type": "output", "output": "Your todo has been create successfully" }
-`;
 
-// const user_prompt = {"type":"plan","plan":`I will call the createTodo for 'Validate Update IA changes in Qa'`};
+    { "Type": "user", "user": "Update a task for shopping groceries, Mark it as completed" }
+    { "Type": "plan", "plan": "I will need the ID of the 'shopping groceries' task to mark it as complete. I'll first search for the task using searchTodo, then update its isCompleted status."ו
+    { "Type": "action", "function": "searchTodo", "input": {"query": "Go to shopping"} }
+    
+    { "Type": "plan", "plan": "I will update the task with ID '67953762a940ec3bbb0ea3ff' to mark it as completed using updateTodo."ו
+    { "Type": "action", "function": "updateTodo", "input": {"id": "67953762a940ec3bbb0ea3ff", "update": "{"isCompleted": true}"} }
+
+    { "Type": "observation", "observation": "{"id": "67953762a940ec3bbb0ea3ff", "update": "{"isCompleted": true}"} " }
+    { "Type": "output", "output": "Your todo has been marked as completed" }
+`;
 
 // ROLE: system, user, assistant, developer
 async function chat() {
@@ -139,7 +154,7 @@ async function chat() {
     while (true) {
       let result = await callGemeni(messages);
       result = result[0];
-      console.log("res", result);
+      // console.log("res", result);
       messages.push(JSON.stringify({ role: "assistant", content: result }));
 
       if (result.Type === "output") {
@@ -166,7 +181,16 @@ async function callGemeni(prompt) {
   if (jsonStrings) {
     const parsedObjects = jsonStrings.map((jsonString) => {
       const cleanJsonString = jsonString.replace(/```json\n|```/g, "");
-      return JSON.parse(cleanJsonString);
+
+      // Escape double quotes inside the JSON string
+      const escapedJsonString = cleanJsonString.replace(
+        /"([^"]*)":\s*"([^"]*)"/g,
+        (match, p1, p2) => {
+          return `"${p1}": "${p2.replace(/"/g, '\\"')}"`;
+        }
+      );
+
+      return JSON.parse(escapedJsonString);
     });
     return parsedObjects;
   } else {
