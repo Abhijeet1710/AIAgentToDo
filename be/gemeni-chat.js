@@ -144,7 +144,7 @@ async function chat() {
 
   while (true) {
     let query = readLineSync.question(">> ");
-    if (query == "exit") break;
+    if (query == "exit") return;
 
     query = { Type: "user", user: query };
     const userMessage = { role: "user", content: query };
@@ -152,20 +152,25 @@ async function chat() {
     messages.push(JSON.stringify(userMessage));
 
     while (true) {
-      let result = await callGemeni(messages);
-      result = result[0];
-      // console.log("res", result);
-      messages.push(JSON.stringify({ role: "assistant", content: result }));
+      try {
+        let result = await callGemeni(messages);
+        result = result[0];
+        // console.log("res", result);
+        messages.push(JSON.stringify({ role: "assistant", content: result }));
 
-      if (result.Type === "output") {
-        console.log("🤖 :", result.output);
+        if (result.Type === "output") {
+          console.log("🤖 :", result.output);
+          break;
+        } else if (result.Type == "action") {
+          const toolToUse = result.function;
+          const toolResp = await availableTools[toolToUse](result.input);
+
+          const obs = { Type: "observation", observation: toolResp };
+          messages.push(JSON.stringify({ role: "developer", content: obs }));
+        }
+      } catch (err) {
+        console.log("Internal Server Erorr");
         break;
-      } else if (result.Type == "action") {
-        const toolToUse = result.function;
-        const toolResp = await availableTools[toolToUse](result.input);
-
-        const obs = { Type: "observation", observation: toolResp };
-        messages.push(JSON.stringify({ role: "developer", content: obs }));
       }
     }
   }
@@ -173,29 +178,33 @@ async function chat() {
 
 async function callGemeni(prompt) {
   const result = await aiClient.generateContent(prompt);
-  const responseText = result.response.text().toString().replace(/\\/g, "");
+  try {
+    const responseText = result.response.text().toString().replace(/\\/g, "");
 
-  // Extract JSON strings
-  const jsonStrings = responseText.match(/```json\n([\s\S]*?)\n```/g);
+    // Extract JSON strings
+    const jsonStrings = responseText.match(/```json\n([\s\S]*?)\n```/g);
 
-  if (jsonStrings) {
-    const parsedObjects = jsonStrings.map((jsonString) => {
-      const cleanJsonString = jsonString.replace(/```json\n|```/g, "");
+    if (jsonStrings) {
+      const parsedObjects = jsonStrings.map((jsonString) => {
+        const cleanJsonString = jsonString.replace(/```json\n|```/g, "");
 
-      // Escape double quotes inside the JSON string
-      const escapedJsonString = cleanJsonString.replace(
-        /"([^"]*)":\s*"([^"]*)"/g,
-        (match, p1, p2) => {
-          return `"${p1}": "${p2.replace(/"/g, '\\"')}"`;
-        }
-      );
+        // Escape double quotes inside the JSON string
+        const escapedJsonString = cleanJsonString.replace(
+          /"([^"]*)":\s*"([^"]*)"/g,
+          (match, p1, p2) => {
+            return `"${p1}": "${p2.replace(/"/g, '\\"')}"`;
+          }
+        );
 
-      return JSON.parse(escapedJsonString);
-    });
-    return parsedObjects;
-  } else {
-    console.log("No JSON strings found in the response.");
-  }
+        return JSON.parse(escapedJsonString);
+      });
+      return parsedObjects;
+    } else {
+      console.log("No JSON strings found in the response.");
+    }
+
+    return null;
+  } catch (err) {}
 
   return null;
 }
@@ -203,6 +212,8 @@ async function callGemeni(prompt) {
 async function startApplication() {
   await connectToDB();
   await chat();
+  process.exit(0);
+  
   //   callGemeni([
   //     JSON.stringify({ role: "system", content: SYSTEM_PROMPT }),
 
