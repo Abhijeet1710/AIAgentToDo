@@ -139,40 +139,34 @@ const SYSTEM_PROMPT = `
 `;
 
 // ROLE: system, user, assistant, developer
-async function chat() {
-  const messages = [JSON.stringify({ role: "system", content: SYSTEM_PROMPT })];
+async function chat(messages ) {
+  console.log("MSG", messages);
+  if(!messages || messages.length === 0){
+    return { messages: [{ role: "system", content: SYSTEM_PROMPT }], output: "InIt", code: 200 };
+  }  
 
   while (true) {
-    let query = readLineSync.question(">> ");
-    if (query == "exit") return;
+    try {
+      let result = await callGemeni(JSON.stringify(messages));
+      if(!result || result.length == 0) return { messages, output: "Could not understand the requirement, Could you please give me some context !", code: 400 };
+      result = result[0];
+      
+      messages.push({ role: "assistant", content: result });
 
-    query = { Type: "user", user: query };
-    const userMessage = { role: "user", content: query };
+      if (result.Type === "output") {
+        console.log("🤖 :", result.output);
+        return { messages, output: result.output, code: 200 };
+        // break;
+      } else if (result.Type == "action") {
+        const toolToUse = result.function;
+        const toolResp = await availableTools[toolToUse](result.input);
 
-    messages.push(JSON.stringify(userMessage));
-
-    while (true) {
-      try {
-        let result = await callGemeni(messages);
-        result = result[0];
-        // console.log("res", result);
-        messages.push(JSON.stringify({ role: "assistant", content: result }));
-
-        if (result.Type === "output") {
-          console.log("🤖 :", result.output);
-          // return {messages, output: result.output};
-          break;
-        } else if (result.Type == "action") {
-          const toolToUse = result.function;
-          const toolResp = await availableTools[toolToUse](result.input);
-
-          const obs = { Type: "observation", observation: toolResp };
-          messages.push(JSON.stringify({ role: "developer", content: obs }));
-        }
-      } catch (err) {
-        console.log("Internal Server Erorr", err);
-        break;
+        const obs = { Type: "observation", observation: toolResp };
+        messages.push({ role: "developer", content: obs });
       }
+    } catch (err) {
+      console.log("Internal Server Erorr", err);
+      return { messages, code: 500, output: "Internal Server Error" };
     }
   }
 }
@@ -254,8 +248,9 @@ async function startApplication() {
   //   ]).then((res) => console.log("res", res));
 }
 
-startApplication();
+// startApplication();
 
 module.exports = {
-  connectToDB
+  connectToDB,
+  chat
 };
