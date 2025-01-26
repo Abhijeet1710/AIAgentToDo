@@ -160,6 +160,7 @@ async function chat() {
 
         if (result.Type === "output") {
           console.log("🤖 :", result.output);
+          // return {messages, output: result.output};
           break;
         } else if (result.Type == "action") {
           const toolToUse = result.function;
@@ -169,7 +170,7 @@ async function chat() {
           messages.push(JSON.stringify({ role: "developer", content: obs }));
         }
       } catch (err) {
-        console.log("Internal Server Erorr");
+        console.log("Internal Server Erorr", err);
         break;
       }
     }
@@ -210,10 +211,9 @@ async function callGemeni(prompt) {
 }
 
 async function startApplication() {
-  await connectToDB();
+  connectToDB();
   await chat();
   process.exit(0);
-  
   //   callGemeni([
   //     JSON.stringify({ role: "system", content: SYSTEM_PROMPT }),
 
@@ -256,4 +256,6 @@ async function startApplication() {
 
 startApplication();
 
-// availableTools["deleteTodoById"]("6794e4b51ffabed27f3275f2").then((res) => console.log("deleted", res));
+module.exports = {
+  connectToDB
+};

@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const { connectToDB } = require('./gemeni-chat');
 
 const app = express();
 
@@ -14,5 +15,6 @@ app.post('/api/v1/chat', (req, res) => {
 });
 
 app.listen(3000, () => {    
+  connectToDB();
   console.log('Server is running on port 3000');
 });
