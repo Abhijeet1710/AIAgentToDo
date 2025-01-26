@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Mic, MicOff } from "lucide-react";
+import axios from "axios";
+
+let messages = [];
 
 const SpeechDetectionScreen = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -7,7 +10,62 @@ const SpeechDetectionScreen = () => {
   const [recognition, setRecognition] = useState(null);
   const inputRef = useRef(null);
 
-  useEffect(() => {
+  async function assistantResponse(content) {   
+    const synth = window.speechSynthesis; 
+    const voices = synth.getVoices();
+    const preferredVoice = voices.find(voice => voice.name.includes("Google US English")) || voices[0];
+
+    const utterance = new SpeechSynthesisUtterance(content);
+    utterance.voice = preferredVoice;
+    utterance.lang = "en-US";
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    utterance.volume = 1; // Full volume
+
+    synth.speak(utterance);
+  }
+
+  async function callLLM() {
+    const isInIt = messages.length == 0;
+
+    if (!isInIt) {
+      console.log("User IP");
+      
+      const userPrompt = {
+        role: "user",
+        content: {
+          Type: "user",
+          user: transcript,
+        },
+      };
+
+      messages.push(userPrompt);
+    }
+    console.log("calling llm", messages);
+
+    try {
+      const resp = await axios.post("http://localhost:3000/api/v1/chat", {
+        messages: messages.length ? messages : undefined,
+        userName: "Abhijeet",
+      });
+
+      // console.log(resp.data);
+      if (!isInIt && resp.data.output) {
+
+        // Speak the output to the user
+        await assistantResponse(resp.data.output);
+
+        // alert(resp.data.output);
+      }
+
+      messages = resp.data.messages;
+    } catch (error) {
+      console.error("Error calling LLM:", error);
+    }
+  }
+
+  async function init() {
+    await callLLM();
     // Check for browser support and initialize SpeechRecognition
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -42,6 +100,10 @@ const SpeechDetectionScreen = () => {
     } else {
       console.warn("SpeechRecognition is not supported in this browser.");
     }
+  }
+
+  useEffect(() => {
+    init();
   }, []);
 
   useEffect(() => {
@@ -58,6 +120,7 @@ const SpeechDetectionScreen = () => {
 
     if (isRecording) {
       recognition.stop();
+      callLLM();
       setIsRecording(false);
     } else {
       recognition.start();
@@ -109,6 +172,8 @@ const SpeechDetectionScreen = () => {
               <Mic className="text-blue w-8 h-8 z-10" />
             )}
           </button>
+
+          <button onClick={callLLM}>Send</button>
         </div>
       </div>
     </div>
