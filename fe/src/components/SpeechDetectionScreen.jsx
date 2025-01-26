@@ -3,34 +3,80 @@ import { Mic, MicOff } from "lucide-react";
 import axios from "axios";
 
 let messages = [];
+let preferredVoice;
+
+const synth = window.speechSynthesis;
+let availableVoices = [];
+
+async function loadVoices() {
+  availableVoices = synth.getVoices();
+  if (availableVoices.length > 0) {
+  } else {
+    console.warn("No voices available. Check your browser or try again.");
+  }
+}
+
+synth.onvoiceschanged = () => {
+  loadVoices();
+};
 
 const SpeechDetectionScreen = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [recognition, setRecognition] = useState(null);
+  // const [loading, setLoading] = useState(false);
   const inputRef = useRef(null);
 
-  async function assistantResponse(content) {   
-    const synth = window.speechSynthesis; 
-    const voices = synth.getVoices();
-    const preferredVoice = voices.find(voice => voice.name.includes("Google US English")) || voices[0];
+  async function assistantResponse(content) {
+    synth.cancel();
+    // await new Promise(() => setTimeout(() => {}, 500));
+    // content = content.replace(/nn/g, '\n').replace(/\\n/g, '\n');
+    content = content.replace(/nn(?=\s|[.,!?;:])/g, '\n');
+    const sentences = content.split(/[\.,!?;:\\(\)\[\]\{\}…\n\r]+/).map(part => part.trim()).filter(Boolean);
+    console.log("All Sentences", sentences);
+    
+    let currentSentence = 0;
 
-    const utterance = new SpeechSynthesisUtterance(content);
-    utterance.voice = preferredVoice;
-    utterance.lang = "en-US";
-    utterance.rate = 1;
-    utterance.pitch = 1;
-    utterance.volume = 1; // Full volume
+    function speakNext() {
+      if (currentSentence < sentences.length) {
+        const utterance = new SpeechSynthesisUtterance(
+          sentences[currentSentence]
+        );
 
-    synth.speak(utterance);
+        // Set voice and properties
+        utterance.voice =
+          availableVoices.find((voice) =>
+            voice.name.includes("Google US English")
+          ) || availableVoices[0];
+        utterance.pitch = 1;
+        utterance.rate = 1;
+        utterance.volume = 1;
+
+        // Event listeners
+        utterance.onend = () => {
+          console.log("Finished sentence:", sentences[currentSentence]);
+          currentSentence++;
+          speakNext();
+        };
+        utterance.onerror = (e) => console.error("Speech synthesis error:", e);
+
+        // Speak the current sentence
+        synth.speak(utterance);
+      } else {
+        console.log("All sentences spoken.");
+      }
+    }
+
+    speakNext();
   }
 
   async function callLLM() {
+    // setLoading(true);
     const isInIt = messages.length == 0;
 
     if (!isInIt) {
       console.log("User IP");
-      
+
       const userPrompt = {
         role: "user",
         content: {
@@ -49,9 +95,8 @@ const SpeechDetectionScreen = () => {
         userName: "Abhijeet",
       });
 
-      // console.log(resp.data);
+      console.log(resp.data);
       if (!isInIt && resp.data.output) {
-
         // Speak the output to the user
         await assistantResponse(resp.data.output);
 
@@ -62,6 +107,8 @@ const SpeechDetectionScreen = () => {
     } catch (error) {
       console.error("Error calling LLM:", error);
     }
+
+    // setLoading(false);
   }
 
   async function init() {
@@ -156,7 +203,8 @@ const SpeechDetectionScreen = () => {
             bg-gray-100
           `}
           >
-            {/* Animated ring when recording */}
+            {/* {!isLoading && isRec?  } */}
+
             {isRecording && (
               <span
                 className="
