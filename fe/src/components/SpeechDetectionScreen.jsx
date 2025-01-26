@@ -31,9 +31,14 @@ const SpeechDetectionScreen = () => {
     synth.cancel();
     // await new Promise(() => setTimeout(() => {}, 500));
     // content = content.replace(/nn/g, '\n').replace(/\\n/g, '\n');
-    content = content.replace(/nn(?=\s|[.,!?;:])/g, '\n');
-    const sentences = content.split(/[\.,!?;:\\(\)\[\]\{\}…\n\r]+/).map(part => part.trim()).filter(Boolean);
-    console.log("All Sentences", sentences);
+    content = content.replace(/nn(?=\s|[.,!?;:]|\b|$)/g, '\n');
+    const sentences = content.split(/[\.!?;:\\(\)\[\]\{\}…\n\r]+/).map(part => {
+      if(part.indexOf("nn") == 0) {
+        part = part.substring(2);
+      }
+      return part.trim()
+  }).filter(Boolean);
+   console.log("All Sentences", sentences);
     
     let currentSentence = 0;
 
