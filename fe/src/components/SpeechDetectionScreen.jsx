@@ -38,7 +38,7 @@ const SpeechDetectionScreen = () => {
       }
       return part.trim()
   }).filter(Boolean);
-   console.log("All Sentences", sentences);
+  //  console.log("All Sentences", sentences);
     
     let currentSentence = 0;
 
@@ -59,7 +59,6 @@ const SpeechDetectionScreen = () => {
 
         // Event listeners
         utterance.onend = () => {
-          console.log("Finished sentence:", sentences[currentSentence]);
           currentSentence++;
           speakNext();
         };
@@ -68,7 +67,7 @@ const SpeechDetectionScreen = () => {
         // Speak the current sentence
         synth.speak(utterance);
       } else {
-        console.log("All sentences spoken.");
+        // console.log("All sentences spoken.");
       }
     }
 
@@ -80,8 +79,9 @@ const SpeechDetectionScreen = () => {
     const isInIt = messages.length == 0;
 
     if (!isInIt) {
-      console.log("User IP");
-
+      if(transcript.trim() == "") {
+        return;
+      }
       const userPrompt = {
         role: "user",
         content: {
@@ -92,7 +92,8 @@ const SpeechDetectionScreen = () => {
 
       messages.push(userPrompt);
     }
-    console.log("calling llm", messages);
+
+    console.log("Calling LLM", messages);
 
     try {
       const resp = await axios.post("http://localhost:3000/api/v1/chat", {
@@ -100,7 +101,7 @@ const SpeechDetectionScreen = () => {
         userName: "Abhijeet",
       });
 
-      console.log(resp.data);
+      console.log("🤓 : ", resp.data);
       if (!isInIt && resp.data.output) {
         // Speak the output to the user
         await assistantResponse(resp.data.output);
@@ -139,7 +140,6 @@ const SpeechDetectionScreen = () => {
           }
         }
 
-        console.log(interimTranscript);
         setTranscript(interimTranscript); // Only the latest result
       };
 
