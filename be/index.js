@@ -10,8 +10,9 @@ app.use(express.json());
 app.post('/api/v1/chat', async (req, res) => {
   // do something
   const body = req.body;
-  console.log(body);
+  // console.log(body);
   const {messages, output, code} = await chat(body.messages);
+  console.log("--------------------------------------------------------------------------------");
   res.status(code).json({ messages, output });
 });
 
