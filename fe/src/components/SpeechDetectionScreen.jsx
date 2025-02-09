@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Mic, MicOff } from "lucide-react";
+import { Loader, Mic, MicOff } from "lucide-react";
 import axios from "axios";
+import AnimatedGradientCircle from "./AnimatedGradientCircle";
+import { TodolistIcon } from "./icons/todolistIcon";
+import AssistYouOptions from "./AssistYouOptions";
 
 let messages = [];
 let preferredVoice;
@@ -24,22 +27,26 @@ const SpeechDetectionScreen = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [recognition, setRecognition] = useState(null);
-  // const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [screen, setScreen] = useState("dashboard");
   const inputRef = useRef(null);
 
   async function assistantResponse(content) {
     synth.cancel();
     // await new Promise(() => setTimeout(() => {}, 500));
     // content = content.replace(/nn/g, '\n').replace(/\\n/g, '\n');
-    content = content.replace(/nn(?=\s|[.,!?;:]|\b|$)/g, '\n');
-    const sentences = content.split(/[\.!?;:\\(\)\[\]\{\}…\n\r]+/).map(part => {
-      if(part.indexOf("nn") == 0) {
-        part = part.substring(2);
-      }
-      return part.trim()
-  }).filter(Boolean);
-  //  console.log("All Sentences", sentences);
-    
+    content = content.replace(/nn(?=\s|[.,!?;:]|\b|$)/g, "\n");
+    const sentences = content
+      .split(/[\.!?;:\\(\)\[\]\{\}…\n\r]+/)
+      .map((part) => {
+        if (part.indexOf("nn") == 0) {
+          part = part.substring(2);
+        }
+        return part.trim();
+      })
+      .filter(Boolean);
+    //  console.log("All Sentences", sentences);
+
     let currentSentence = 0;
 
     function speakNext() {
@@ -79,7 +86,7 @@ const SpeechDetectionScreen = () => {
     const isInIt = messages.length == 0;
 
     if (!isInIt) {
-      if(transcript.trim() == "") {
+      if (transcript.trim() == "") {
         return;
       }
       const userPrompt = {
@@ -118,6 +125,8 @@ const SpeechDetectionScreen = () => {
   }
 
   async function init() {
+    setLoading(true);
+
     await callLLM();
     // Check for browser support and initialize SpeechRecognition
     const SpeechRecognition =
@@ -152,6 +161,14 @@ const SpeechDetectionScreen = () => {
     } else {
       console.warn("SpeechRecognition is not supported in this browser.");
     }
+    await new Promise((resolve, _) =>
+      setTimeout(() => {
+        resolve();
+      }, 500)
+    );
+    console.log("fal");
+
+    setLoading(false);
   }
 
   useEffect(() => {
@@ -164,7 +181,9 @@ const SpeechDetectionScreen = () => {
     }
   }, [transcript]);
 
-  const toggleRecording = () => {
+const toggleRecording = () => {
+    console.log("inside toggleRec");
+    
     if (!recognition) {
       alert("Speech recognition is not supported in your browser.");
       return;
@@ -175,59 +194,84 @@ const SpeechDetectionScreen = () => {
       callLLM();
       setIsRecording(false);
     } else {
+      setScreen("chat");
       recognition.start();
       setIsRecording(true);
     }
-  };
+};
 
   const handleInputChange = (event) => {
     setTranscript(event.target.value);
   };
 
-  return (
-    <div className="w-screen h-screen overflow-hidden bg-gray-100 py-4">
-      <div className="h-[80%] overflow-y-scroll">
-        <h1 className="text-4xl font-bold text-center">Jarvis</h1>
+  if (loading)
+    return (
+      <div className="bg-black">
+        <AnimatedGradientCircle />
       </div>
-      <div className="flex flex-col justify-end items-center p-4 overflow-hidden">
-        <div className="flex items-center gap-4 w-full max-w-4xl">
-          <input
-            ref={inputRef}
-            value={transcript}
-            onChange={handleInputChange}
-            placeholder="Your speech will appear here..."
-            className="flex-1 h-16 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+    );
 
-          <button
-            onClick={toggleRecording}
-            className={`
-              px-4 py-4
-            relative flex items-center justify-center w-16 h-16 rounded-full shadow-lg
-            transition-transform transform hover:scale-120 focus:outline-none
-            bg-gray-100
-          `}
-          >
-            {/* {!isLoading && isRec?  } */}
-
-            {isRecording && (
-              <span
-                className="
-                absolute inset-0 animate-ping rounded-full
-                bg-red-500 opacity-75
-              "
-              ></span>
-            )}
-
-            {isRecording ? (
-              <MicOff className="text-blue w-8 h-8 z-10" />
-            ) : (
-              <Mic className="text-blue w-8 h-8 z-10" />
-            )}
-          </button>
-
-          <button onClick={callLLM}>Send</button>
+  if (screen === "dashboard") {
+    return (
+      <div className="w-screen h-screen overflow-hidden bg-black text-white py-4 px-4">
+        <div className="">
+          <div className="">
+            <h2 className="text-3xl font-semibold text-center">Jarvis</h2>
+          </div>
         </div>
+        {!isRecording && (
+          <div className="mt-8 h-screen">
+            <div className="text-xl  font-semibold">
+              <h2>How can I assist you? </h2>
+            </div>
+
+            <div>
+              <AssistYouOptions />
+            </div>
+
+            <div className="absolute bottom-0 w-full flex justify-center p-4">
+              <button className="text-black" onClick={() => toggleRecording()}>
+                Chat with me
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (screen === "chat") {
+    return (
+      <div className="w-screen h-screen overflow-hidden bg-black text-white py-4 px-4">
+        <div className="">
+          <div className="">
+            <h2 className="text-3xl font-semibold text-center">Jarvis</h2>
+          </div>
+        </div>
+
+        {isRecording && (
+          <div className="mt-8 h-screen">
+            <div>
+              <input
+                ref={inputRef}
+                value={transcript}
+                onChange={handleInputChange}
+                className="border-none flex-1 h-16 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="">
+              <AnimatedGradientCircle clickFunc={toggleRecording} />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-screen h-screen overflow-hidden bg-black text-white">
+      <div className="h-[80%] overflow-y-scroll">
+        <h2 className="text-3xl font-semibold text-center">Some Error</h2>
       </div>
     </div>
   );
